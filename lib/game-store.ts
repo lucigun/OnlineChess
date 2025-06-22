@@ -1,3 +1,5 @@
+import { ChessRules } from "./chess-rules"
+
 export interface GameRoom {
   id: string
   name: string
@@ -17,6 +19,13 @@ export interface GameRoom {
       black?: number
     }
     disconnectedPlayer?: "white" | "black"
+    lastMove?: {
+      from: string
+      to: string
+      timestamp: number
+    }
+    isCheck?: boolean
+    isCheckmate?: boolean
   }
 }
 
@@ -157,44 +166,85 @@ class GameStore {
     return null
   }
 
-  makeMove(roomId: string, from: string, to: string, playerName: string): boolean {
+  makeMove(roomId: string, from: string, to: string, playerName: string): { success: boolean; error?: string } {
     const room = this.rooms.get(roomId)
-    if (!room) return false
+    if (!room) return { success: false, error: "방을 찾을 수 없습니다" }
 
     const gameState = room.gameState
+
+    // 게임 상태 확인
+    if (gameState.status !== "playing") {
+      return { success: false, error: "게임이 진행 중이 아닙니다" }
+    }
 
     // 플레이어 검증
     const playerColor =
       gameState.players.white === playerName ? "white" : gameState.players.black === playerName ? "black" : null
 
     if (!playerColor || gameState.currentPlayer !== playerColor) {
-      return false
+      return { success: false, error: "당신의 차례가 아닙니다" }
     }
 
-    // 이동 처리
-    const fromRow = 8 - Number.parseInt(from[1])
-    const fromCol = from.charCodeAt(0) - 97
-    const toRow = 8 - Number.parseInt(to[1])
-    const toCol = to.charCodeAt(0) - 97
+    // 체스 규칙 검증
+    const fromPos = ChessRules.squareToPosition(from)
+    const toPos = ChessRules.squareToPosition(to)
 
-    const piece = gameState.board[fromRow][fromCol]
-    if (!piece) return false
+    if (!ChessRules.isValidMove(gameState.board, fromPos, toPos)) {
+      return { success: false, error: "유효하지 않은 이동입니다" }
+    }
 
     // 말 이동
-    gameState.board[toRow][toCol] = piece
-    gameState.board[fromRow][fromCol] = ""
+    const piece = gameState.board[fromPos.row][fromPos.col]
+    const capturedPiece = gameState.board[toPos.row][toPos.col]
 
-    // 차례 변경
-    gameState.currentPlayer = gameState.currentPlayer === "white" ? "black" : "white"
+    gameState.board[toPos.row][toPos.col] = piece
+    gameState.board[fromPos.row][fromPos.col] = ""
 
     // 이동 기록
     gameState.moveHistory.push(`${from}-${to}`)
+    gameState.lastMove = {
+      from,
+      to,
+      timestamp: Date.now(),
+    }
 
     // 플레이어 활동 업데이트
     gameState.lastActivity[playerColor] = Date.now()
 
+    // 차례 변경
+    const nextPlayer = gameState.currentPlayer === "white" ? "black" : "white"
+    gameState.currentPlayer = nextPlayer
+
+    // 체크/체크메이트 확인
+    gameState.isCheck = ChessRules.isInCheck(gameState.board, nextPlayer)
+    gameState.isCheckmate = ChessRules.isCheckmate(gameState.board, nextPlayer)
+
+    // 게임 종료 확인
+    if (gameState.isCheckmate) {
+      gameState.status = "finished"
+      gameState.winner = playerColor // 체크메이트를 만든 플레이어가 승리
+    }
+
+    // 킹이 잡혔는지 확인 (추가 안전장치)
+    const opponentKing = nextPlayer === "white" ? "K" : "k"
+    let kingExists = false
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        if (gameState.board[row][col] === opponentKing) {
+          kingExists = true
+          break
+        }
+      }
+      if (kingExists) break
+    }
+
+    if (!kingExists) {
+      gameState.status = "finished"
+      gameState.winner = playerColor
+    }
+
     this.rooms.set(roomId, room)
-    return true
+    return { success: true }
   }
 }
 

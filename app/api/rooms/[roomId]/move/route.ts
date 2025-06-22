@@ -10,10 +10,10 @@ export async function POST(request: Request, { params }: { params: { roomId: str
       return NextResponse.json({ error: "필수 정보가 누락되었습니다" }, { status: 400 })
     }
 
-    const success = gameStore.makeMove(roomId, from, to, playerName)
+    const result = gameStore.makeMove(roomId, from, to, playerName)
 
-    if (!success) {
-      return NextResponse.json({ error: "잘못된 이동입니다" }, { status: 400 })
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 })
     }
 
     return NextResponse.json({ success: true })

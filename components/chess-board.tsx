@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { ChessRules } from "@/lib/chess-rules"
 import type { GameState } from "@/app/game/[roomId]/page"
 
 interface ChessBoardProps {
@@ -28,6 +29,24 @@ const PIECES = {
 export function ChessBoard({ gameState, playerColor, onMove, disabled }: ChessBoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null)
   const [possibleMoves, setPossibleMoves] = useState<string[]>([])
+  const [lastMoveHighlight, setLastMoveHighlight] = useState<{ from: string; to: string } | null>(null)
+
+  // 마지막 이동 하이라이트 효과
+  useEffect(() => {
+    if (gameState.lastMove) {
+      setLastMoveHighlight({
+        from: gameState.lastMove.from,
+        to: gameState.lastMove.to,
+      })
+
+      // 3초 후 하이라이트 제거
+      const timer = setTimeout(() => {
+        setLastMoveHighlight(null)
+      }, 3000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [gameState.lastMove])
 
   const handleSquareClick = (row: number, col: number) => {
     if (disabled) return
@@ -51,7 +70,7 @@ export function ChessBoard({ gameState, playerColor, onMove, disabled }: ChessBo
       } else if (piece && isPlayerPiece(piece, playerColor)) {
         // 다른 자신의 말 선택
         setSelectedSquare(square)
-        setPossibleMoves(getPossibleMoves(row, col, piece, gameState.board))
+        setPossibleMoves(getValidMoves(row, col))
       } else {
         // 선택 해제
         setSelectedSquare(null)
@@ -61,7 +80,7 @@ export function ChessBoard({ gameState, playerColor, onMove, disabled }: ChessBo
       if (piece && isPlayerPiece(piece, playerColor)) {
         console.log("말 선택:", piece, "위치:", square)
         setSelectedSquare(square)
-        setPossibleMoves(getPossibleMoves(row, col, piece, gameState.board))
+        setPossibleMoves(getValidMoves(row, col))
       }
     }
   }
@@ -72,119 +91,21 @@ export function ChessBoard({ gameState, playerColor, onMove, disabled }: ChessBo
     return color === "white" ? isWhitePiece : !isWhitePiece
   }
 
-  const getPossibleMoves = (row: number, col: number, piece: string, board: string[][]): string[] => {
-    const moves: string[] = []
-    const pieceType = piece.toLowerCase()
+  const getValidMoves = (row: number, col: number): string[] => {
+    const position = { row, col }
+    const possiblePositions = ChessRules.getPossibleMoves(gameState.board, position)
 
-    // 기본적인 이동 패턴 (모든 말에 대해 최소한의 이동 허용)
-    const directions = getPieceDirections(pieceType)
-
-    for (const [dr, dc] of directions) {
-      let newRow = row + dr
-      let newCol = col + dc
-
-      // 폰의 경우 색상에 따른 방향 조정
-      if (pieceType === "p") {
-        const isWhitePiece = piece === piece.toUpperCase()
-        if (isWhitePiece) {
-          newRow = row - Math.abs(dr) // 백은 위로
-        } else {
-          newRow = row + Math.abs(dr) // 흑은 아래로
-        }
-      }
-
-      while (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-        const targetPiece = board[newRow][newCol]
-
-        if (!targetPiece) {
-          moves.push(`${String.fromCharCode(97 + newCol)}${8 - newRow}`)
-        } else {
-          if (isOpponentPiece(piece, targetPiece)) {
-            moves.push(`${String.fromCharCode(97 + newCol)}${8 - newRow}`)
-          }
-          break
-        }
-
-        // 폰, 킹, 나이트는 한 칸만
-        if (["p", "k", "n"].includes(pieceType)) break
-
-        newRow += dr
-        newCol += dc
-      }
-    }
-
-    console.log("가능한 이동:", moves)
-    return moves
-  }
-
-  const getPieceDirections = (piece: string): number[][] => {
-    switch (piece) {
-      case "r":
-        return [
-          [0, 1],
-          [0, -1],
-          [1, 0],
-          [-1, 0],
-        ]
-      case "b":
-        return [
-          [1, 1],
-          [1, -1],
-          [-1, 1],
-          [-1, -1],
-        ]
-      case "q":
-        return [
-          [0, 1],
-          [0, -1],
-          [1, 0],
-          [-1, 0],
-          [1, 1],
-          [1, -1],
-          [-1, 1],
-          [-1, -1],
-        ]
-      case "k":
-        return [
-          [0, 1],
-          [0, -1],
-          [1, 0],
-          [-1, 0],
-          [1, 1],
-          [1, -1],
-          [-1, 1],
-          [-1, -1],
-        ]
-      case "n":
-        return [
-          [2, 1],
-          [2, -1],
-          [-2, 1],
-          [-2, -1],
-          [1, 2],
-          [1, -2],
-          [-1, 2],
-          [-1, -2],
-        ]
-      case "p":
-        return [
-          [1, 0], // 한 칸 전진
-          [2, 0], // 두 칸 전진 (첫 이동)
-          [1, 1], // 대각선 공격
-          [1, -1], // 대각선 공격
-        ]
-      default:
-        return []
-    }
-  }
-
-  const isOpponentPiece = (piece1: string, piece2: string): boolean => {
-    return (piece1 === piece1.toUpperCase()) !== (piece2 === piece2.toUpperCase())
+    return possiblePositions.map((pos) => ChessRules.positionToSquare(pos))
   }
 
   const getSquareColor = (row: number, col: number): string => {
     const isLight = (row + col) % 2 === 0
     const square = `${String.fromCharCode(97 + col)}${8 - row}`
+
+    // 마지막 이동 하이라이트 (spark 효과)
+    if (lastMoveHighlight && (lastMoveHighlight.from === square || lastMoveHighlight.to === square)) {
+      return "bg-yellow-400 animate-pulse shadow-lg shadow-yellow-400/50"
+    }
 
     if (selectedSquare === square) {
       return "bg-blue-400"
@@ -200,6 +121,24 @@ export function ChessBoard({ gameState, playerColor, onMove, disabled }: ChessBo
 
   return (
     <div className="flex flex-col items-center w-full">
+      {/* 체크/체크메이트 알림 */}
+      {gameState.isCheck && gameState.status === "playing" && (
+        <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg">
+          <div className="text-red-800 font-medium text-center">
+            {gameState.currentPlayer === "white" ? "백" : "흑"}이 체크 상태입니다!
+            {gameState.currentPlayer === playerColor && " 킹을 안전한 곳으로 이동하세요."}
+          </div>
+        </div>
+      )}
+
+      {gameState.isCheckmate && (
+        <div className="mb-4 p-3 bg-red-200 border border-red-400 rounded-lg">
+          <div className="text-red-900 font-bold text-center">
+            체크메이트! {gameState.winner === "white" ? "백" : "흑"}의 승리!
+          </div>
+        </div>
+      )}
+
       {/* 모바일에서 체스판 크기 조정 */}
       <div className="grid grid-cols-8 border-4 border-amber-900 shadow-2xl w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl">
         {boardRows.map((row) =>
@@ -210,7 +149,7 @@ export function ChessBoard({ gameState, playerColor, onMove, disabled }: ChessBo
             return (
               <div
                 key={`${row}-${col}`}
-                className={`aspect-square flex items-center justify-center cursor-pointer text-2xl sm:text-3xl md:text-4xl select-none ${getSquareColor(row, col)} hover:opacity-80 transition-opacity`}
+                className={`aspect-square flex items-center justify-center cursor-pointer text-2xl sm:text-3xl md:text-4xl select-none ${getSquareColor(row, col)} hover:opacity-80 transition-all duration-300`}
                 onClick={() => handleSquareClick(row, col)}
               >
                 {piece && PIECES[piece as keyof typeof PIECES]}

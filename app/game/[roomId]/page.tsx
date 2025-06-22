@@ -24,6 +24,13 @@ export interface GameState {
     black?: number
   }
   disconnectedPlayer?: "white" | "black"
+  lastMove?: {
+    from: string
+    to: string
+    timestamp: number
+  }
+  isCheck?: boolean
+  isCheckmate?: boolean
 }
 
 export default function GamePage() {
@@ -238,6 +245,15 @@ export default function GamePage() {
             </div>
             <div className="text-red-600 text-sm mt-1">
               {gameState.winner === playerColor ? "당신이 승리했습니다!" : "상대방이 승리했습니다."}
+            </div>
+          </div>
+        )}
+
+        {/* 체크메이트 승리 알림 */}
+        {gameState.status === "finished" && gameState.isCheckmate && (
+          <div className="mb-4 p-4 bg-green-100 border border-green-300 rounded-lg">
+            <div className="text-green-800 font-medium">
+              체크메이트! {gameState.winner === playerColor ? "당신이 승리했습니다!" : "상대방이 승리했습니다!"}
             </div>
           </div>
         )}
