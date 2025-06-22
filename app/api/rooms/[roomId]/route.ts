@@ -1,9 +1,14 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { gameStore } from "@/lib/game-store"
 
-export async function GET(request: Request, { params }: { params: { roomId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { roomId: string } }) {
   try {
     const roomId = params.roomId
+
+    if (!roomId) {
+      return NextResponse.json({ error: "방 ID가 필요합니다" }, { status: 400 })
+    }
+
     const room = gameStore.getRoom(roomId)
 
     if (!room) {

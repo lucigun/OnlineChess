@@ -88,11 +88,23 @@ export default function GamePage() {
         if (!mounted) return
 
         try {
-          await fetch(`/api/rooms/${roomId}/heartbeat`, {
+          const response = await fetch(`/api/rooms/${roomId}/heartbeat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ playerName }),
           })
+
+          if (!response.ok) {
+            console.error(`Heartbeat failed: ${response.status} ${response.statusText}`)
+            // 404 에러가 지속되면 메인 페이지로 리다이렉트
+            if (response.status === 404) {
+              console.log("Room not found, redirecting to main page")
+              window.location.href = "/"
+            }
+          } else {
+            const data = await response.json()
+            console.log("Heartbeat successful:", data)
+          }
         } catch (error) {
           console.error("Heartbeat 전송 실패:", error)
         }
