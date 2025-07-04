@@ -1,117 +1,106 @@
-import type { GameState } from "@/app/game/[roomId]/page"
+"use client"
+
+import type { GameState } from "../lib/types"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Clock, Users, Trophy } from "lucide-react"
 
 interface GameInfoProps {
   gameState: GameState
-  playerColor: "white" | "black" | null
-  playerName: string
+  onReset: () => void
+  onJoinGame: (playerName: string) => void
 }
 
-export function GameInfo({ gameState, playerColor, playerName }: GameInfoProps) {
-  const getStatusText = () => {
+export function GameInfo({ gameState, onReset, onJoinGame }: GameInfoProps) {
+  const getStatusMessage = (): string => {
     switch (gameState.status) {
       case "waiting":
-        return "플레이어 대기 중"
-      case "playing":
-        return gameState.currentPlayer === "white" ? "백의 차례" : "흑의 차례"
-      case "finished":
-        if (gameState.disconnectedPlayer) {
-          const disconnectedName =
-            gameState.disconnectedPlayer === "white" ? gameState.players.white : gameState.players.black
-          return `${disconnectedName}님이 나감`
+        if (!gameState.players.white && !gameState.players.black) {
+          return "플레이어를 기다리는 중..."
+        } else if (!gameState.players.black) {
+          return "흑색 플레이어를 기다리는 중..."
+        } else if (!gameState.players.white) {
+          return "백색 플레이어를 기다리는 중..."
         }
-        if (gameState.winner === "draw") return "무승부"
-        return `${gameState.winner === "white" ? "백" : "흑"} 승리!`
-      default:
-        return "알 수 없음"
-    }
-  }
-
-  const getStatusColor = () => {
-    switch (gameState.status) {
-      case "waiting":
-        return "secondary"
+        return "게임 시작 준비 중..."
       case "playing":
-        return gameState.currentPlayer === playerColor ? "default" : "outline"
-      case "finished":
-        return "destructive"
+        const currentPlayerName =
+          gameState.currentPlayer === "white" ? gameState.players.white : gameState.players.black
+        return `${currentPlayerName}의 차례 (${gameState.currentPlayer === "white" ? "백색" : "흑색"})`
+      case "checkmate":
+        const winner = gameState.currentPlayer === "white" ? "흑색" : "백색"
+        return `체크메이트! ${winner} 승리!`
+      case "stalemate":
+        return "스테일메이트! 무승부!"
+      case "draw":
+        return "무승부!"
       default:
-        return "outline"
+        return ""
     }
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center text-base sm:text-lg">
-            <Trophy className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-            게임 상태
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <Badge variant={getStatusColor() as any} className="mb-2 sm:mb-3">
-            {getStatusText()}
-          </Badge>
+    <Card className="w-80">
+      <CardHeader>
+        <CardTitle>체스 게임</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="text-center">
+          <p className="text-lg font-semibold">{getStatusMessage()}</p>
+          {gameState.isInCheck && gameState.status === "playing" && <p className="text-red-600 font-bold">체크!</p>}
+        </div>
 
-          {gameState.status === "playing" && (
-            <div className="text-xs sm:text-sm text-gray-600">
-              {gameState.currentPlayer === playerColor ? "당신의 차례입니다!" : "상대방의 차례입니다."}
-            </div>
-          )}
-
-          {gameState.status === "finished" && gameState.disconnectedPlayer && (
-            <div className="text-xs sm:text-sm text-red-600 mt-2">상대방이 연결을 끊었습니다</div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center text-base sm:text-lg">
-            <Users className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-            플레이어
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0 space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center">♔ 백</span>
-            <span className="font-medium truncate ml-2">
-              {gameState.players.white || "대기 중..."}
-              {gameState.players.white === playerName && " (나)"}
-            </span>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span>백색:</span>
+            <span>{gameState.players.white || "없음"}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center">♚ 흑</span>
-            <span className="font-medium truncate ml-2">
-              {gameState.players.black || "대기 중..."}
-              {gameState.players.black === playerName && " (나)"}
-            </span>
+          <div className="flex justify-between">
+            <span>흑색:</span>
+            <span>{gameState.players.black || "없음"}</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {gameState.moveHistory.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center text-base sm:text-lg">
-              <Clock className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-              이동 기록
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="max-h-32 sm:max-h-40 overflow-y-auto space-y-1">
-              {gameState.moveHistory.slice(-10).map((move, index) => (
-                <div key={index} className="text-xs sm:text-sm text-gray-600">
-                  {gameState.moveHistory.length - 10 + index + 1}. {move}
+        {gameState.status === "waiting" && (
+          <div className="space-y-2">
+            {!gameState.players.white && (
+              <Button onClick={() => onJoinGame("플레이어 1")} className="w-full">
+                백색으로 참가
+              </Button>
+            )}
+            {!gameState.players.black && (
+              <Button onClick={() => onJoinGame("플레이어 2")} className="w-full" variant="outline">
+                흑색으로 참가
+              </Button>
+            )}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <p className="text-sm text-gray-600">이동 횟수: {gameState.moveHistory.length}</p>
+
+          <Button onClick={onReset} variant="outline" className="w-full bg-transparent">
+            게임 리셋
+          </Button>
+        </div>
+
+        {gameState.moveHistory.length > 0 && (
+          <div className="max-h-32 overflow-y-auto">
+            <p className="text-sm font-semibold mb-2">이동 기록:</p>
+            <div className="text-xs space-y-1">
+              {gameState.moveHistory.slice(-5).map((move, index) => (
+                <div key={index} className="flex justify-between">
+                  <span>
+                    {move.piece.color === "white" ? "백" : "흑"} {move.piece.type}
+                  </span>
+                  <span>
+                    ({move.from.row},{move.from.col}) → ({move.to.row},{move.to.col})
+                  </span>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
